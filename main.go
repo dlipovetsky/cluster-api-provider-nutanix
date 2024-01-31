@@ -107,13 +107,14 @@ func main() {
 	setupLog.Info("Initializing Nutanix Cluster API Infrastructure Provider", "Git Hash", gitCommitHash)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "f265110d.cluster.x-k8s.io",
-		Namespace:              namespace,
+		Scheme:                  scheme,
+		MetricsBindAddress:      metricsAddr,
+		Port:                    9443,
+		HealthProbeBindAddress:  probeAddr,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionID:        "f265110d.cluster.x-k8s.io",
+		LeaderElectionNamespace: namespace,
+		Namespace:               namespace,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create manager")
