@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -23,16 +25,65 @@ import (
 	mockk8sclient "github.com/nutanix-cloud-native/cluster-api-provider-nutanix/mocks/k8sclient"
 )
 
-func TestParseFlags(t *testing.T) {
-	config := &managerConfig{}
-	os.Args = []string{"cmd", "--leader-elect=true", "--max-concurrent-reconciles=5", "--diagnostics-address=:8081", "--insecure-diagnostics=true"}
-	parseFlags(config)
+func TestInitializeConfig(t *testing.T) {
+	tt := []struct {
+		name    string
+		args    []string
+		wantErr bool
+	}{
+		{
+			name: "pass with misc. options",
+			args: []string{
+				"cmd",
+				"--leader-elect=true",
+				"--max-concurrent-reconciles=5",
+				"--health-probe-bind-address=:8081",
+				"--insecure-diagnostics=true",
+				"--rate-limiter-base-delay=500ms",
+				"--rate-limiter-max-delay=10s",
+				"--rate-limiter-bucket-size=1000",
+				"--rate-limiter-qps=50",
+				"--diagnostics-address=:9999",
+				"--insecure-diagnostics=false",
+			},
+			wantErr: false,
+		},
+		{
+			name: "pass with kubeconfig",
+			args: []string{
+				"--kubeconfig=testdata/kubeconfig",
+			},
+		},
+		{
+			name: "fail with missing kubeconfig",
+			args: []string{
+				"cmd",
+				"--kubeconfig=notfound",
+			},
+			wantErr: true,
+		},
+	}
 
-	assert.Equal(t, true, config.enableLeaderElection)
-	assert.Equal(t, 5, config.concurrentReconcilesNutanixCluster)
-	assert.Equal(t, 5, config.concurrentReconcilesNutanixMachine)
-	assert.Equal(t, ":8081", config.managerOptions.DiagnosticsAddress)
-	assert.Equal(t, true, config.managerOptions.InsecureDiagnostics)
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Args = tc.args
+
+			// Make sure we are only reading options from flags, not the environment.
+			os.Clearenv()
+
+			// Clear flags initialized by any other test.
+			flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+			pflag.CommandLine = pflag.NewFlagSet(os.Args[0], pflag.ExitOnError)
+
+			opts := initializeFlags()
+
+			_, err := initializeConfig(opts)
+
+			if tc.wantErr != (err != nil) {
+				t.Errorf("unexpected error: %s", err)
+			}
+		})
+	}
 }
 
 func TestSetupLogger(t *testing.T) {
@@ -60,7 +111,7 @@ func TestInitializeManager(t *testing.T) {
 
 	config := &managerConfig{
 		enableLeaderElection:               false,
-		probeAddr:                          ":8081",
+		healthProbeAddr:                    ":8081",
 		concurrentReconcilesNutanixCluster: 1,
 		concurrentReconcilesNutanixMachine: 1,
 		logger:                             setupLogger(),
